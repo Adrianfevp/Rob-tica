@@ -1,0 +1,176 @@
+#include <IRremote.hpp>
+#define IR_RECEIVE_PIN 2
+
+
+#include <Adafruit_NeoPixel.h>
+
+#ifdef __AVR__
+#include <avr/power.h>
+#endif
+
+#define LED_PIN 12
+#define LED_COUNT 300
+
+Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+IRrecv irrecv(11);  // Pino do receptor IR
+decode_results results;
+// Function declarations
+void rainbow(int wait);
+void colorWipe(uint32_t color, int wait);
+void beamEffect(int waitTime);
+void turnOffStrip();
+
+bool stripOff = false;  
+
+int brightness = 50;
+
+void setup() {
+  Serial.begin(115200); // // Establish serial communication
+  IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK); // Start the receiver
+  
+  #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+    clock_prescale_set(clock_div_1);
+  #endif
+
+  strip.begin();           
+  strip.show();           
+  strip.setBrightness(50);
+  colorWipe(strip.Color(0, 0, 0), 10);
+}
+
+void loop() {
+  if (IrReceiver.decode()) {
+    Serial.println(IrReceiver.decodedIRData.decodedRawData, HEX); // Exibe os dados recebidos
+
+    // Verifica o código do controle remoto
+    switch(IrReceiver.decodedIRData.decodedRawData) {
+      case 0xBA45FF00:
+        if (!stripOff) colorWipe(strip.Color(255, 90, 0), 10); // Orange
+        break;
+      case 0xB946FF00: 
+        if (!stripOff) colorWipe(strip.Color(255, 0, 0), 10); // Red
+        break;
+      case 0xB847FF00: 
+        if (!stripOff) colorWipe(strip.Color(0, 255, 0), 10); // Green
+        break;
+      case 0xBB44FF00:
+        if (!stripOff) colorWipe(strip.Color(0, 0, 255), 10); // Blue
+        break;
+      case 0xBF40FF00: 
+        if (!stripOff) colorWipe(strip.Color(84, 0, 10), 10); // Wine
+        break;
+      case 0xBC43FF00: 
+        if (!stripOff) colorWipe(strip.Color(255, 200, 0), 10); // Yellow
+        break;
+      case 0xF807FF00: 
+        if (!stripOff) colorWipe(strip.Color(105, 0, 195), 10); // Purple
+        break;
+      case 0xEA15FF00: 
+        if (!stripOff) colorWipe(strip.Color(0, 255, 255), 10); // Cyan
+        break;
+      case 0xF609FF00:
+        if (!stripOff) colorWipe(strip.Color(255, 0, 127), 10); // Pink
+        break;
+     case  0xE916FF00:
+        turnOffStrip();
+        break;
+      case 0xE619FF00:
+        if (!stripOff) colorWipe(strip.Color(255, 255, 255), 10); // White
+        break;
+      case 0xF20DFF00:
+        stripOff = false; // Liga os LEDs
+        strip.show();
+        break;
+      case 0xE718FF00: 
+        brightness = min(brightness + 10, 254); // Aumenta até 255
+        strip.setBrightness(brightness);
+        strip.show();
+        break;
+      case 0xF708FF00:
+        if (!stripOff)beamEffect(50);
+        break;
+        case 0xE31CFF00: 
+        
+        break;
+      case 0xA55AFF00: 
+         if (!stripOff)rainbow(50);
+        break;
+      case 0xAD52FF00:
+        brightness = max(brightness - 10, 1); // Diminui até 0
+        strip.setBrightness(brightness);
+        strip.show();
+        break;
+        
+      default:
+        break; 
+    }
+    IrReceiver.resume(); // Enable receiving of the next value
+  }
+}
+
+void turnOffStrip() {
+  stripOff = true; // Indica que os LEDs estão desligados
+  strip.fill(strip.Color(0, 0, 0)); // Apaga todos os LEDs
+  strip.show();
+}
+
+void colorWipe(uint32_t color, int wait) {
+  for (int i = 0; i < strip.numPixels(); i++) {
+    strip.setPixelColor(i, color);
+    strip.show();
+    delay(wait);
+  }
+}
+
+void rainbow(int wait) {
+    for (long firstPixelHue = 0; firstPixelHue < 65536; firstPixelHue += 256) {
+        for (int i = 0; i < strip.numPixels(); i++) {
+            int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
+            strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
+        }
+        strip.show();
+        delay(wait);
+    }
+}
+
+void beamEffect(int waitTime) {
+    int numPixels = strip.numPixels();
+    int beamWidth = 20; // Largura do feixe
+    uint32_t color = strip.Color(random(255), random(255), random(255)); // Cor aleatória inicial
+
+    // Movimento do feixe para a direita
+    for (int i = 0; i < numPixels - beamWidth; i++) {
+        // Acende o feixe
+        for (int j = 0; j < beamWidth; j++) {
+            strip.setPixelColor(i + j, strip.gamma32(color));
+        }
+        strip.show();
+        delay(waitTime);
+
+        // Apaga o feixe anterior
+        for (int j = 0; j < beamWidth; j++) {
+            strip.setPixelColor(i + j, strip.gamma32(strip.Color(255, 255, 255))); // Apaga
+        }
+    }
+
+    // Troca a cor ao chegar ao final
+    color = strip.Color(random(255), random(255), random(255)); // Nova cor aleatória
+
+    // Retorno do feixe para a esquerda
+    for (int i = numPixels - beamWidth; i >= 0; i--) {
+        // Acende o feixe
+        for (int j = 0; j < beamWidth; j++) {
+            strip.setPixelColor(i + j, strip.gamma32(color));
+        }
+        strip.show();
+        delay(waitTime);
+
+        // Apaga o feixe anterior
+        for (int j = 0; j < beamWidth; j++) {
+            strip.setPixelColor(i + j, strip.gamma32(strip.Color(255, 255, 255))); // Apaga
+        }
+    }
+
+    // Troca a cor novamente ao voltar
+    color = strip.Color(random(255), random(255), random(255)); // Nova cor aleatória
+}
